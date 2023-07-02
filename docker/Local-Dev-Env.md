@@ -56,7 +56,7 @@ docker network create --driver bridge --subnet 172.180.0.0/16 local-standalone
   	-v /home/lee/docker/es-single/plugins:/usr/share/elasticsearch/plugins \
   	--network local-standalone \
   	-d elasticsearch:8.1.0
-  # 然后需要安装中文分词插件，支持中文搜索, https://github.com/medcl/elasticsearch-analysis-ik/releases, 选择和ES同版本的
+  # 然后需要安装中文分词插件，支持中文搜索, https://github.com/medcl/elasticsearch-analysis-ik/releases, 选择和ES同版本的(版本必须严格一致)
   # 下载后解压到 plugins/ik/ 目录下，重启容器， 然后检查下效果
   # ik_max_word ：IK 最大化分词，会将文本做最细粒度的拆分
   curl -X POST http://localhost:9200/_analyze \
@@ -74,6 +74,24 @@ docker network create --driver bridge --subnet 172.180.0.0/16 local-standalone
   }'
   ```
 
++ **ElasticSearch-7.17.6**
+
+  ```shell
+  # 访问：http://127.0.0.1:9201/ 返回节点信息json则启动成功
+  docker run --name es-7-single \
+  	-p 9201:9200 \
+  	-e "discovery.type=single-node" \
+  	-e "cluster.routing.allocation.disk.watermark.low=97%" \
+  	-e "cluster.routing.allocation.disk.watermark.high=98%" \
+  	-e "cluster.routing.allocation.disk.watermark.flood_stage=99%" \
+  	-e "xpack.security.enabled=false" \
+  	-e "xpack.security.http.ssl:enabled=false" \
+  	-e ES_JAVA_OPTS="-Xms256m -Xmx1024m" \
+  	-v /home/lee/docker/es-7-single/data:/usr/share/elasticsearch/data \
+  	-v /home/lee/docker/es-7-single/plugins:/usr/share/elasticsearch/plugins \
+  	--network local-standalone \
+  	-d elasticsearch:7.17.6
+  ```
 
 #### ElasticHD
 
@@ -81,6 +99,30 @@ docker network create --driver bridge --subnet 172.180.0.0/16 local-standalone
 # ElasticHD, UI端口默认9800
 docker run --name es-hd-single -p 9800:9800 --network local-standalone -d containerize/elastichd:latest
 ```
+
+#### Kibana
+
++ **Kibana-8.1.0**
+
+  ```shell
+  docker run --name kibana-8-single \
+  	-e ELASTICSEARCH_HOSTS="http://es-single:9200" \
+  	--network local-standalone \
+  	-p 5601:5601 \
+  	-d kibana:8.1.0
+  ```
+
++ **Kibana-7.17.6**
+
+  ```shell
+  # 注意这个版本配置es ip端口的环境变量是 ELASTICSEARCH_HOSTS，不同版本这个环境变量可能不同
+  # 查对应版本的官方文档最靠谱：https://www.elastic.co/guide/en/kibana/7.17/docker.html
+  docker run --name kibana-7-single \
+  	-e ELASTICSEARCH_HOSTS="http://es-7-single:9200" \
+  	--network local-standalone \
+  	-p 5602:5601 \
+  	-d kibana:7.17.6
+  ```
 
 ### 服务注册中心&配置中心
 
