@@ -196,8 +196,8 @@ Maven为大多数步骤绑定了默认插件，所有有时即使没有指定插
 
 | phase                     | Description                                                  |
 | :------------------------ | :----------------------------------------------------------- |
-| `validate`                | validate the project is correct and all necessary information is available. |
-| `initialize`              | initialize build state, e.g. set properties or create directories. |
+| `validate`                | 验证项目是否正确，所有必要的信息是否可用。                   |
+| `initialize`              | 初始化构建状态，例如设置属性或创建目录。                     |
 | `generate-sources`        | generate any source code for inclusion in compilation.       |
 | `process-sources`         | process the source code, for example to filter any values.   |
 | `generate-resources`      | generate resources for inclusion in the package.             |
@@ -350,6 +350,46 @@ Maven的核心仅仅定义了抽象的生命周 期，具体的任务是交由�
 对于官方插件，配置时可以省略 groupId。
 
 插件配置时可以省略 version, Maven会将版本解析为所有可用仓库中的 最新版本，而这个版本也可能是快照版。但是推荐指定版本，避免频繁的插件更新带来的不稳定。
+
+### [Maven 拓展](https://maven.apache.org/extensions/index.html)
+
+如下两段配置
+
+```xml
+<build>
+    <extensions>
+        <extension>
+            <groupId>kr.motd.maven</groupId>
+            <artifactId>os-maven-plugin</artifactId>
+            <version>${os.plugin.version}</version>
+        </extension>
+    </extensions>
+</build>
+```
+
+和
+
+```xml
+<plugin>
+    <groupId>kr.motd.maven</groupId>
+    <artifactId>os-maven-plugin</artifactId>
+    <version>${os-maven-plugin.version}</version>
+    <executions>
+        <execution>
+            <phase>initialize</phase>
+            <goals>
+	            <goal>detect</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+```
+
+第一段代码的作用是在 Maven 构建中使用 os-maven-plugin 插件的同时，将 os-maven-plugin 插件作为一个扩展进行配置。这样做的目的是为了能够在构建过程中使用 os-maven-plugin 的功能来增强 Maven 的功能，例如通过 os-maven-plugin 来检测操作系统版本，在构建过程中根据操作系统版本来动态地配置某些信息等。
+
+第二段代码则是将 os-maven-plugin 插件直接配置在构建过程中，使用了 plugin 元素来进行配置。这样做的目的是为了能够在 Maven 构建过程的特定阶段中执行 os-maven-plugin 插件的任务，例如在 initialize 阶段中检测操作系统版本，或执行其他与操作系统相关的任务。
+
+因此，这两种方式的区别主要在于它们的作用方式不同。第一个代码片段旨在使用 os-maven-plugin 扩展来增强 Maven 的功能，而第二个代码片段则旨在直接使用 os-maven-plugin 插件来执行特定任务。
 
 ### Maven多模块-聚合、继承
 
@@ -652,11 +692,13 @@ apache-maven-3.6.3 :
   <modelVersion>4.0.0</modelVersion>
 
   <repositories>
+    <!-- 超级POM中配置了中央仓库地址，从而让Maven项目可以从中央仓库下载依赖 -->
     <repository>
       <id>central</id>
       <name>Central Repository</name>
       <url>https://repo.maven.apache.org/maven2</url>
       <layout>default</layout>
+      <!-- 中央仓库不支持SNAPSHOT版本依赖下载 -->
       <snapshots>
         <enabled>false</enabled>
       </snapshots>
@@ -664,6 +706,7 @@ apache-maven-3.6.3 :
   </repositories>
 
   <pluginRepositories>
+    <!-- 插件中央仓库 -->
     <pluginRepository>
       <id>central</id>
       <name>Central Repository</name>
@@ -679,23 +722,33 @@ apache-maven-3.6.3 :
   </pluginRepositories>
 
   <build>
+    <!-- 编译生成文件目录 -->
     <directory>${project.basedir}/target</directory>
+    <!-- 编译输出目录，在编译生成文件目录下 -->
     <outputDirectory>${project.build.directory}/classes</outputDirectory>
+    <!-- 编译生成jar等文件的名字 -->
     <finalName>${project.artifactId}-${project.version}</finalName>
+    <!-- 编译测试代码输出目录，在编译生成文件目录下 -->
     <testOutputDirectory>${project.build.directory}/test-classes</testOutputDirectory>
+    <!-- 源码文件目录 -->
     <sourceDirectory>${project.basedir}/src/main/java</sourceDirectory>
+    <!-- 脚本文件目录，比较少见，TODO怎么用的 -->
     <scriptSourceDirectory>${project.basedir}/src/main/scripts</scriptSourceDirectory>
+    <!-- 测试源码文件目录 -->
     <testSourceDirectory>${project.basedir}/src/test/java</testSourceDirectory>
     <resources>
       <resource>
+        <!-- 资源文件目录 -->
         <directory>${project.basedir}/src/main/resources</directory>
       </resource>
     </resources>
     <testResources>
       <testResource>
+        <!-- 测试资源文件目录 -->
         <directory>${project.basedir}/src/test/resources</directory>
       </testResource>
     </testResources>
+    <!-- 默认管理的插件及版本 -->
     <pluginManagement>
       <!-- NOTE: These plugins will be removed from future versions of the super POM -->
       <!-- They are kept for the moment as they are very unlikely to conflict with lifecycle mappings (MNG-4453) -->
@@ -721,14 +774,16 @@ apache-maven-3.6.3 :
   </build>
 
   <reporting>
+    <!-- site 文件目录，默认 /target/site -->
     <outputDirectory>${project.build.directory}/site</outputDirectory>
   </reporting>
 
   <profiles>
     <!-- NOTE: The release profile will be removed from future versions of the super POM -->
     <profile>
+      <!-- 提供了打包部署的功能 -->
       <id>release-profile</id>
-
+      <!-- performRelease属性为true触发 -->
       <activation>
         <property>
           <name>performRelease</name>
