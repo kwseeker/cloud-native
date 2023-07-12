@@ -172,6 +172,12 @@ Maven的四个集成测试阶段：
 
 - [shade:shade](https://maven.apache.org/plugins/maven-shade-plugin/shade-mojo.html) is bound to the `package` phase and is used to create a shaded jar.
 
+  - artifactSet
+
+    定义需要合并的 jar 包集合。如果没有指定 元素，maven-shade-plugin 默认会合并项目依赖项中的所有 Jar 包。当然，如果您只想合并部分 Jar 包，您可以在 元素中指定它们的 groupId、artifactId 和 version。
+
+    可以使用`<includes>`指定只想合并的依赖Jar包，使用 `<excludes>`排除不需要的Jar包。
+
   - shadedArtifactAttached
 
     此参数的作用是控制 shaded artifact 是否作为附加的构件进行发布。举个例子，假设有一个 Java 项目，其依赖于 `com.example:library:1.0.0` 这个库。如果在项目中使用 `maven-shade-plugin` 插件将项目及其依赖项打包成一个带有重命名的 shaded artifact 文件，则可以设置 `shadedArtifactAttached` 参数来控制是否将 shaded artifact 作为附加的构件进行发布。
@@ -209,6 +215,17 @@ Maven的四个集成测试阶段：
     └── skywalking-agent.jar
     ```
 
+  - filters
+
+    常和 excludes、includes 元素搭配使用用于打包时过滤掉不需要的文件。
+
+  + createSourcesJar
+
+    另外打包一个源码Jar包，默认应该是true，因为不配置这个参数也会打源码包。
+
+  + transformers
+
+    用于打包Java Agent项目。
 
 ### assembly
 
