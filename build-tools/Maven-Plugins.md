@@ -686,10 +686,12 @@ IDEA中可以在编辑代码时按checkstyle文件格式格式化代码，可以
 + [protobuf:compile-javanano](https://www.xolstice.org/protobuf-maven-plugin/compile-javanano-mojo.html) uses JavaNano generator (requires protobuf compiler version 3 or above) to compile main `.proto` definitions into Java files and attaches the generated Java sources to the project.
 + [protobuf:test-compile-javanano](https://www.xolstice.org/protobuf-maven-plugin/test-compile-javanano-mojo.html) uses JavaNano generator (requires protobuf compiler version 3 or above) to compile test `.proto` definitions into Java files and attaches the generated Java test sources to the project.
 
-案例：
+案例1（最佳实现）：
 
 ```xml
 <build>
+    <!-- os-maven-plugin 放在 extensions 中，可以将其导出的环境变量作用于build全局，
+			对比案例2测试下就知道为何要将 os-maven-plugin 放到这个元素位置了 -->
     <extensions>
         <extension>
             <groupId>kr.motd.maven</groupId>
@@ -704,15 +706,16 @@ IDEA中可以在编辑代码时按checkstyle文件格式格式化代码，可以
             <version>${protobuf.plugin.version}</version>
             <extensions>true</extensions>
             <configuration>
+                <pluginId>grpc-java</pluginId>
                 <!-- 工具版本 -->
                 <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
-                <!--默认值，proto源文件路径-->
+                <!--默认值，proto源文件路径，用默认的就好 -->
                 <protoSourceRoot>${project.basedir}/src/main/proto</protoSourceRoot>
-                <!--默认值，proto目标java文件路径-->
-                <outputDirectory>${project.basedir}/src/main/java</outputDirectory>
+                <!--proto目标java文件路径， 默认值： ${project.basedir}/target/generated-sources/protobuf ，用默认的就好，不然代码提交时麻烦 -->
+                <!-- 一般不推荐改这个 -->
+                <!--<outputDirectory>${project.basedir}/src/main/java</outputDirectory>-->
                 <!--设置是否在生成java文件之前清空outputDirectory的文件，默认值为true，设置为false时也会覆盖同名文件-->
                 <clearOutputDirectory>false</clearOutputDirectory>
-
             </configuration>
             <executions>
                 <execution>
@@ -728,7 +731,108 @@ IDEA中可以在编辑代码时按checkstyle文件格式格式化代码，可以
             </executions>
         </plugin>
     </plugins>
+    <!-- 另外如果IDE、Maven无法自动失败生成的代码文件，可以通过在 sourceDirectories 下添加生成的代码文件目录  -->
+    <sourceDirectories>
+      <directory>${project.build.directory}/generated-sources/java/</directory>
+    </sourceDirectories>
 </build>
+```
+
+案例2：
+
+```xml
+<plugins>
+    <!-- 经测试这样写，只有执行整体的构建如 mvn clean package，protobuf 插件才能识别到 ${os.detected.classifier} 
+			单独执行 protobuf:compile会失败，不推荐这么写，推荐 案例1 中将 os-maven-plugin 放到 extensions 中
+	-->
+    <plugin>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>${os-maven-plugin.version}</version>
+        <executions>
+            <execution>
+                <phase>initialize</phase>
+                <goals>
+                    <goal>detect</goal>
+                </goals>
+            </execution>
+        </executions>
+    </plugin>
+    <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>${protobuf-maven-plugin.version}</version>
+        <configuration>
+            <!--
+                      The version of protoc must match protobuf-java. If you don't depend on
+                      protobuf-java directly, you will be transitively depending on the
+                      protobuf-java version that grpc depends on.
+                    -->
+            <pluginId>grpc-java</pluginId>
+            <!-- 指定 protoc, 方式1
+					单独执行 protobuf:compile 时由于后面的配置方法拿不到${os.detected.classifier}，会报错，所以直接指定protoc可执行文件 
+					如果前面个将 os-maven-plugin 放到 extensions 中，则可以使用方式2
+					但是这种配置和环境相关，不方便，还是推荐方式2
+			-->
+            <protocExecutable>/opt/protoc/bin/protoc</protocExecutable>
+            <!-- 指定 protoc, 方式2 -->
+            <protocArtifact>
+                com.google.protobuf:protoc:${com.google.protobuf.protoc.version}:exe:${os.detected.classifier}
+            </protocArtifact>
+            <pluginArtifact>
+                io.grpc:protoc-gen-grpc-java:${protoc-gen-grpc-java.plugin.version}:exe:${os.detected.classifier}
+            </pluginArtifact>
+            <!-- proto文件路径 -->
+            <!--<protoSourceRoot>${project.basedir}/src/main/proto</protoSourceRoot>-->
+            <!-- 生成后的文件存放根路径, 默认 target/generated-sources/protobuf -->
+            <!--<outputDirectory>${project.basedir}/src/main/java</outputDirectory>-->
+            <!-- 是否在生成Java文件前清空outputDirectory的文件 -->
+            <!--<clearOutputDirectory>false</clearOutputDirectory>-->
+        </configuration>
+        <executions>
+            <execution>
+                <id>grpc-build</id>
+                <goals>
+                    <goal>compile</goal>
+                    <goal>compile-custom</goal>
+                </goals>
+            </execution>
+        </executions>
+    </plugin>
+    <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.0.0</version>
+        <configuration>
+            <createDependencyReducedPom>false</createDependencyReducedPom>
+        </configuration>
+        <executions>
+            <execution>
+                <phase>package</phase>
+                <goals>
+                    <goal>shade</goal>
+                </goals>
+                <configuration>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>**/module-info.class</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                    <transformers>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                            <manifestEntries>
+                                <Premain-Class>top.kwseeker.bytecode.skywalking.SkyWalkingAgent</Premain-Class>
+                            </manifestEntries>
+                        </transformer>
+                    </transformers>
+                </configuration>
+            </execution>
+        </executions>
+    </plugin>
+</plugins>
 ```
 
 
