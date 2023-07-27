@@ -7,6 +7,8 @@
 + 构建插件(Build plugins)
 + 报告插件(Reporting plugins)
 
+
+
 ## [Maven插件配置](https://maven.apache.org/guides/mini/guide-configuring-plugins.html)
 
 ### 插件配置元素
@@ -730,11 +732,29 @@ IDEA中可以在编辑代码时按checkstyle文件格式格式化代码，可以
                 </execution>
             </executions>
         </plugin>
+            <!-- 另外如果IDE、Maven无法自动识别生成的代码文件，可以通过  添加生成的代码文件目录，
+					如果模块较多手动一个个标记 Generated Sources Root 太累了，不如提前配置好 -->
+        <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <version>1.8</version>
+            <executions>
+                <execution>
+                    <id>add-source</id>
+                    <phase>generate-sources</phase>
+                    <goals>
+                        <goal>add-source</goal>
+                    </goals>
+                    <configuration>
+                        <sources>
+                            <source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
+                            <source>${project.build.directory}/generated-sources/protobuf/java</source>
+                        </sources>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
     </plugins>
-    <!-- 另外如果IDE、Maven无法自动失败生成的代码文件，可以通过在 sourceDirectories 下添加生成的代码文件目录  -->
-    <sourceDirectories>
-      <directory>${project.build.directory}/generated-sources/java/</directory>
-    </sourceDirectories>
 </build>
 ```
 
