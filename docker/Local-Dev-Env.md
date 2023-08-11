@@ -31,10 +31,28 @@ docker network create --driver bridge --subnet 172.180.0.0/16 local-standalone
   	--network local-standalone \
   	mysql:5.7.24
   ```
+  
+  > mysql -h127.0.0.1 -uroot -P3306 --ssl-mode=DISABLED -p
+  >
+  > 新版本mysql客户端命令默认启用SSL协议，如果要关闭的话需要传参数`--ssl-mode=DISABLED`。
+  >
+  > 另外注意当`-h`选项填写为localhost时，可能会报`ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)`，原因其实是**因为这个服务端UDS Socket文件不存在，因为我本地只装了MySQL客户端，没有装mysql-server (Docker安装的)**，所以当然不会有这个文件；当主机填写为127.0.0.1时mysql会采用TCP方式连接（连接正常）, TCP的socket文件由proc虚拟文件系统管理。
+  >
+  > 很多相同配置 Window 上可以运行但是 Linux 异常大多都是权限问题。
+  >
+  >  Unix Domain Socket 创建 `int fd = socket(AF_UNIX, SOCKET_STREAM, 0);`
+  >
+  > 关于Unix Domain Socket原理：[本机网络 IO 之 Unix Domain Socket 性能分析](https://zhuanlan.zhihu.com/p/448373622)
 
 #### Redis
 
++ Redis-6.2.13
 
+  ```shell
+  docker run -d --name redis-single \
+  	-p 6379:6379 \
+  	redis:6.2.13 redis-server --save 60 1 --loglevel warning
+  ```
 
 #### ElasticSearch
 
@@ -128,6 +146,26 @@ docker run --name es-hd-single -p 9800:9800 --network local-standalone -d contai
 
 #### Nacos
 
++ nacos-server:2.0.2
+
+    ```shell
+    # http://127.0.0.1:8848/nacos/ 用户名/密码：nacos/nacos
+    # https://hub.docker.com/r/nacos/nacos-server
+    # 9848是RPC端口
+    docker run --name nacos-single \
+        -e MODE=standalone \
+        -e MYSQL_SERVICE_HOST=mysql-sa-57 \
+        -e MYSQL_SERVICE_PORT=3306 \
+        -e MYSQL_SERVICE_USER=root \
+        -e MYSQL_SERVICE_PASSWORD=123456 \
+        -e MYSQL_SERVICE_DB_NAME=nacos \
+        -e JVM_XMS=256m \
+    	-e JVM_XMX=512m \
+        -p 8848:8848 \
+        -p 9848:9848 \
+        -d nacos/nacos-server:2.0.2
+    ```
+
 #### Zookeeper
 
 #### Consul
@@ -135,6 +173,72 @@ docker run --name es-hd-single -p 9800:9800 --network local-standalone -d contai
 ### 消息中间件
 
 #### RocketMQ
+
+这里使用官方镜像部署，之前使用非官方景象部署的脚本参考：https://github.com/kwseeker/message-queue/blob/master/deploy/rocketmq/docker-compose-simple.yml
+
++ rocketmq-4.9.7
+
+  ```shell
+  # namesrv
+  docker run --name rmq-namesrv-single \
+      -e JAVA_OPT_EXT="-server -Xms128m -Xmx512m" \
+      -p 9876:9876 \
+      -d apache/rocketmq:4.9.7 \
+      sh mqnamesrv
+  # broker
+  docker run --name rmq-broker-single \
+  	-e JAVA_OPT_EXT="-server -Xms128m -Xmx512m" \
+  	-e NAMESRV_ADDR="rmq-namesrv-single:9876" \
+      -p 10909:10909 \
+      -p 10911:10911 \
+      -p 10912:10912 \
+      -d apache/rocketmq:4.9.7 \
+      sh mqbroker -c /home/rocketmq/rocketmq-4.9.7/conf/broker.conf
+  ```
+
++ rocketmq-dashboard:1.0.0
+
+  ```shell
+  # http://localhost:28081/
+  docker run --name rmq-dashboard-single \
+      -e JAVA_OPTS="-Drocketmq.namesrv.addr=rmq-namesrv-single:9876" \
+      -p 28081:8080 \
+      -d apacherocketmq/rocketmq-dashboard:1.0.0
+  # 填容器名报错
+  # [2023-08-09 06:44:47.987]  WARN validate object ClientConfig [namesrvAddr=rmq-namesrv-single:9876, clientIP=172.17.0.6, instanceName=1691563470002, clientCallbackExecutorThreads=8, pollNameServerInterval=30000, heartbeatBrokerInterval=30000, persistConsumerOffsetInterval=5000, pullTimeDelayMillsWhenException=1000, unitMode=false, unitName=null, vipChannelEnabled=true, useTLS=false, language=JAVA, namespace=null] err
+  # org.apache.rocketmq.remoting.exception.RemotingConnectException: connect to [rmq-namesrv-single:9876] failed
+  # 	at org.apache.rocketmq.remoting.netty.NettyRemotingClient.getAndCreateNameserverChannel(NettyRemotingClient.java:445)
+      
+  # Docker容器内部嵌入了一个DNS服务用于将容器名转成IP
+  # 原因：内嵌DNS服务（估计是DNS协议）工作在应用层协议，但是NettyRemotingClient建立的TCP连接，走不到DNS服务。
+      
+  # 换成IP是可以的，但是使用IP不优雅(改用--link,虽然这个参数官方不推荐使用但是暂没啥好方法)
+  docker run --name rmq-dashboard-single \
+      -e JAVA_OPTS="-Drocketmq.namesrv.addr=rmq-namesrv-single:9876" \
+      -p 28081:8080 \
+      --link rmq-namesrv-single \
+      -d apacherocketmq/rocketmq-dashboard:1.0.0
+  # 为何 --link 可以，因为当使用--link选项时，Docker会在目标容器的环境变量中注入一些与连接相关的值。其中一个环境变量是<别名>_PORT_<端口>_<协议>，通过该环境变量，你可以获取目标容器的IP地址和端口信息。TODO: 这里的细节后面有空研究
+  # 进入容器内部可以查看到下面环境变量
+  root@110148dc2aab:/# env | grep PORT
+  RMQ_NAMESRV_SINGLE_PORT_10911_TCP_PORT=10911
+  RMQ_NAMESRV_SINGLE_PORT_10911_TCP_PROTO=tcp
+  RMQ_NAMESRV_SINGLE_PORT=tcp://172.17.0.4:9876
+  RMQ_NAMESRV_SINGLE_PORT_10909_TCP_PORT=10909
+  RMQ_NAMESRV_SINGLE_PORT_10909_TCP_PROTO=tcp
+  RMQ_NAMESRV_SINGLE_PORT_9876_TCP_ADDR=172.17.0.4
+  RMQ_NAMESRV_SINGLE_PORT_10912_TCP=tcp://172.17.0.4:10912
+  RMQ_NAMESRV_SINGLE_PORT_9876_TCP=tcp://172.17.0.4:9876
+  RMQ_NAMESRV_SINGLE_PORT_10912_TCP_PORT=10912
+  RMQ_NAMESRV_SINGLE_PORT_10912_TCP_PROTO=tcp
+  RMQ_NAMESRV_SINGLE_PORT_9876_TCP_PORT=9876
+  RMQ_NAMESRV_SINGLE_PORT_10911_TCP=tcp://172.17.0.4:10911
+  RMQ_NAMESRV_SINGLE_PORT_10909_TCP_ADDR=172.17.0.4
+  RMQ_NAMESRV_SINGLE_PORT_9876_TCP_PROTO=tcp
+  RMQ_NAMESRV_SINGLE_PORT_10909_TCP=tcp://172.17.0.4:10909
+  RMQ_NAMESRV_SINGLE_PORT_10912_TCP_ADDR=172.17.0.4
+  RMQ_NAMESRV_SINGLE_PORT_10911_TCP_ADDR=172.17.0.4
+  ```
 
 ### 路由追踪&监控
 
@@ -164,6 +268,12 @@ docker run --name skywalking-ui-single \
 	-d apache/skywalking-ui:9.0.0    
 ```
 
+### Docker Compose 整合 
+
+### K8S 整合
+
+
+
 ## 本地伪集群环境
 
 ```shell
@@ -171,5 +281,7 @@ docker run --name skywalking-ui-single \
 docker network create --driver bridge --subnet 172.190.0.0/16 local-cluster
 ```
 
+### Docker Compose 整合
 
+### K8S 整合
 
