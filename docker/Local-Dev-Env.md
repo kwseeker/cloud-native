@@ -268,6 +268,18 @@ docker run --name skywalking-ui-single \
 	-d apache/skywalking-ui:9.0.0    
 ```
 
+### 降级限流熔断
+
+#### Sentinel
+
++ sentinel-dashboard:1.8.6
+
+  ```shell
+  docker run --name sentinel-dashboard-single \
+      -p 28082:8080 \
+      -d kwseeker/sentinel-dashboard:1.8.6
+  ```
+
 ### Docker Compose 整合 
 
 ### K8S 整合
