@@ -1,8 +1,6 @@
 # K8S 指令
 
-
-
-## kubectl
+## [kubectl](https://kubernetes.io/zh-cn/docs/reference/kubectl/kubectl/)
 
 ```shell
 # shell 自动补全
