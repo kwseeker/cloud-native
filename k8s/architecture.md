@@ -4,7 +4,7 @@
 
 
 
-## 组件
+## 基础组件
 
 官方文档：[Kubernetes 组件](https://kubernetes.io/zh-cn/docs/concepts/overview/components/)
 
@@ -87,6 +87,12 @@
   
   + **kubectl**
   + **API接口**
+
+
+
+## 完整的K8S服务集群都包含什么
+
++ 
 
 
 
@@ -230,8 +236,6 @@
 #### 某个Pod到另一个服务的Pod
 
 Pod -> Service -> Endpoint -> Pod
-
-
 
 ### 网络优化
 

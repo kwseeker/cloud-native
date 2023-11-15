@@ -3,15 +3,27 @@
 
 项目构建工具的内容也放这里头吧。
 
-还是需要多做笔记，命令、参数过几天不用就会忘记，这里记录常用的使用方法。
-
 
 
 + docker
   + [Docker-Engine](docker/Docker-Engine.md)
   + [Docker-Desktop](docker/Docker-Desktop.md)
+
 + cicd
   + [Gitlab-CICD](cicd/Gitlab-CICD.md)
   + [Jenkins](cicd/Jenkins.md)
+
 + k8s
+
++ vm
+
+  + kvm
+
++ java
+
+  Java云原生方案
+
++ golang
+
+  Go 云原生方案
 
