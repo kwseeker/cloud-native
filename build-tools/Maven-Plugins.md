@@ -32,7 +32,7 @@
 
 ### clean
 
-### resources
+### [resources](https://maven.apache.org/plugins/maven-resources-plugin/index.html)
 
 负责将项目资源复制到输出目录。有两种不同的资源:主资源和测试资源。区别在于主资源是与主源代码关联的资源，而测试资源是与测试源代码关联的资源。
 
@@ -63,6 +63,68 @@
     </build>
     ...
 </project>
+```
+
+资源文件复制，比如：将`src/main/resources`下对应配置文件复制到`../conf`。
+
+```xml
+<build>
+    <resources>
+        <!-- 方法１, 将src/main/resources下所有文件复制到 target/conf, 
+			默认是复制到classes, ../conf 即与classes平级的conf 
+			注意这么复制的话，classes下面就不会有这些资源文件了
+			这种用法没看到对应官方文档，但是在项目中看到了
+		-->
+        <resource>
+            <directory>src/main/resources</directory>
+            <!-- 这个没用到放这里有点迷惑人，filtering 用于变量替换
+ 			-->
+            <!--<filtering>true</filtering>-->
+            <targetPath>../conf</targetPath>
+            <!-- 这里即使不指定也会将下面所有目录中所有文件复制到目标路径 -->
+            <!--<includes>-->
+            <!--    <include>**/*.xml</include>-->
+            <!--    <include>**/*.properties</include>-->
+            <!--    <include>**/*.toml</include>-->
+            <!--</includes>
+        </resource>
+    </resources>
+    
+    </plugins>  
+        <!-- 方法2: 这种方式其实更直观，https://maven.apache.org/plugins/maven-resources-plugin/examples/copy-resources.html
+ 			注意这么复制的话，classes下面仍然有这些资源文件
+		-->  
+        <plugin>  
+            <artifactId>maven-resources-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>copy-resources</id>
+                <!-- 自行选择执行阶段，编译之前即可 -->
+                <phase>process-resources</phase>
+                <goals>
+                  <goal>copy-resources</goal>
+                </goals>
+                <configuration>
+                  <outputDirectory>${basedir}/target/conf</outputDirectory>
+                  <resources>          
+                    <resource>
+                      <directory>src/main/resources</directory>
+                      <!-- 按includes规则进行过滤，注意和resources.resource.filtering的含义不同 -->
+                      <filtering>true</filtering>
+                      <includes>
+                        <include>**/*.xml</include>
+                        <include>**/*.properties</include>
+                        <include>**/*.toml</include>
+                      </includes> 
+                    </resource>
+                  </resources>              
+                </configuration>            
+              </execution>
+            </executions>
+        </plugin>     
+    </plugins>  
+</build>
 ```
 
 ### compiler
