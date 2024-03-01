@@ -27,9 +27,24 @@ docker network create --driver bridge --subnet 172.180.0.0/16 local-standalone
   # sa: standalone缩写
   docker run -d --name mysql-sa-57 \
   	-p 3306:3306 \
+  	-v /home/arvin/docker/mysql-sa-57/conf/my.cnf:/etc/mysql/my.cnf \
+  	-v /home/arvin/docker/mysql-sa-57/data:/var/lib/mysql
   	-e MYSQL_ROOT_PASSWORD=123456 \
   	--network local-standalone \
   	mysql:5.7.24
+  ```
+  
+  配置文件 my.cnf
+  
+  ```properties
+  [mysqld]
+  # 打开binlog
+  log-bin=mysql-bin
+  binlog-format=ROW
+  server_id=1
+  
+  !includedir /etc/mysql/conf.d/
+  !includedir /etc/mysql/mysql.conf.d/
   ```
   
   > mysql -h127.0.0.1 -uroot -P3306 --ssl-mode=DISABLED -p
@@ -40,9 +55,118 @@ docker network create --driver bridge --subnet 172.180.0.0/16 local-standalone
   >
   > 很多相同配置 Window 上可以运行但是 Linux 异常大多都是权限问题。
   >
-  >  Unix Domain Socket 创建 `int fd = socket(AF_UNIX, SOCKET_STREAM, 0);`
+  > Unix Domain Socket 创建 `int fd = socket(AF_UNIX, SOCKET_STREAM, 0);`
   >
   > 关于Unix Domain Socket原理：[本机网络 IO 之 Unix Domain Socket 性能分析](https://zhuanlan.zhihu.com/p/448373622)
+
+#### Canal
+
++ Canal-Server-v1.1.7
+
+  ```shell
+  docker run -d --name canal-sa \
+  	-p 11111:11111 \
+  	-v /home/arvin/docker/canal-sa/conf/canal.properties:/home/admin/canal-server/conf/canal.properties \
+  	-v /home/arvin/docker/canal-sa/conf/apipe/instance.properties:/home/admin/canal-server/conf/apipe/instance.properties \
+  	--network local-standalone \
+  	canal/canal-server:v1.1.7
+  ```
+
+  配置文件：
+
+   canal.properties：
+
+  ```properties
+  # tcp bind ip
+  # 本机有多个IP（Docker虚拟IP）配置127.0.0.1发现还是会设置为查找到的第一个IP地址
+  canal.ip = 192.168.2.169
+  # ...
+  # 当前server上部署的instance列表,instance是一个读取管道，管道名自定义
+  canal.destinations = apipe
+  # ...
+  ```
+
+  apipe/instance.properties：
+
+  ```properties
+  #################################################
+  ## mysql serverId , v1.0.26+ will autoGen
+  # canal.instance.mysql.slaveId=0
+  
+  # enable gtid use true/false
+  canal.instance.gtidon=false
+  
+  # position info
+  # mysql-sa-57的ip是172.180.0.2
+  canal.instance.master.address=172.180.0.2:3306
+  # 设置从哪个binlog文件开始读取，通过 show master status 设置最新的值
+  canal.instance.master.journal.name=mysql-bin.000001
+  # 设置从哪个位置开始读取，通过 show master status 设置最新的值
+  canal.instance.master.position=154
+  canal.instance.master.timestamp=
+  canal.instance.master.gtid=
+  
+  # rds oss binlog
+  canal.instance.rds.accesskey=
+  canal.instance.rds.secretkey=
+  canal.instance.rds.instanceId=
+  
+  # table meta tsdb info
+  canal.instance.tsdb.enable=true
+  #canal.instance.tsdb.url=jdbc:mysql://127.0.0.1:3306/canal_tsdb
+  #canal.instance.tsdb.dbUsername=canal
+  #canal.instance.tsdb.dbPassword=canal
+  
+  #canal.instance.standby.address =
+  #canal.instance.standby.journal.name =
+  #canal.instance.standby.position =
+  #canal.instance.standby.timestamp =
+  #canal.instance.standby.gtid=
+  
+  # username/password
+  canal.instance.dbUsername=root
+  canal.instance.dbPassword=123456
+  canal.instance.connectionCharset = UTF-8
+  # enable druid Decrypt database password
+  canal.instance.enableDruid=false
+  #canal.instance.pwdPublicKey=MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBALK4BUxdDltRRE5/zXpVEVPUgunvscYFtEip3pmLlhrWpacX7y7GCMo2/JM6LeHmiiNdH1FWgGCpUfircSwlWKUCAwEAAQ==
+  
+  # table regex
+  # 这里匹配所有数据库表, 会被客户端连接中的配置覆盖
+  canal.instance.filter.regex=.*\\..*
+  # table black regex
+  canal.instance.filter.black.regex=mysql\\.slave_.*
+  # table field filter(format: schema1.tableName1:field1/field2,schema2.tableName2:field1/field2)
+  #canal.instance.filter.field=test1.t_product:id/subject/keywords,test2.t_company:id/name/contact/ch
+  # table field black filter(format: schema1.tableName1:field1/field2,schema2.tableName2:field1/field2)
+  #canal.instance.filter.black.field=test1.t_product:subject/product_image,test2.t_company:id/name/contact/ch
+  
+  # mq config
+  canal.mq.topic=example
+  # dynamic topic route by schema or table regex
+  #canal.mq.dynamicTopic=mytest1.user,topic2:mytest2\\..*,.*\\..*
+  canal.mq.partition=0
+  # hash partition config
+  #canal.mq.enableDynamicQueuePartition=false
+  #canal.mq.partitionsNum=3
+  #canal.mq.dynamicTopicPartitionNum=test.*:4,mycanal:6
+  #canal.mq.partitionHash=test.table:id^name,.*\\..*
+  #################################################
+  ```
+
+  配置详解：网上很多，比如 [canal的配置详解](https://blog.51cto.com/u_15278282/3021436)。
+
+  > 配置的坑：
+  >
+  > + 如果本机存在多个IP（比如创建了多个Docker虚拟网络），canal-server 和canal 客户端不能配置绑定IP地址为 `127.0.0.1`，这个IP会被认定为无效IP，然后会从IP列表选择第一个IP并绑定，很容易导致连接失败。
+  >
+  >   这个坑已经在好几个中间件中碰到了。
+  >
+  > + 实例日志一直报错：caused by com.alibaba.otter.canal.parse.exception.CanalParseException: java.io.IOException: ErrorPacket [errorNumber=1146, fieldCount=-1, message=Table 'activiti.BASE TABLE' doesn't exist, sqlState=42S02, sqlStateMarker=#]
+  >
+  >   但是直接使用1.1.6版本的jar包本地部署没有报错，更新使用 1.1.7版本的docker容器也正常，估计1.1.6版本的docker镜像使用的有bug的1.1.6版本做的镜像。
+  >
+  >   参考：[#4291](https://github.com/alibaba/canal/issues/4291)
 
 #### Redis
 
