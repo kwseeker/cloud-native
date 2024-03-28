@@ -417,6 +417,170 @@ docker run --name skywalking-ui-single \
 docker network create --driver bridge --subnet 172.190.0.0/16 local-cluster
 ```
 
+### 数据库
+
+#### Redis Cluster
+
+创建配置文件：
+
+```shell
+for port in $(seq 1 6); \
+do \
+mkdir -p ./node-${port}/conf
+touch ./node-${port}/conf/redis.conf
+cat << EOF > ./node-${port}/conf/redis.conf
+port 6379
+bind 0.0.0.0
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+cluster-announce-ip 172.190.0.1${port}
+cluster-announce-port 6379
+cluster-announce-bus-port 16379
+appendonly yes
+EOF
+done
+```
+
+docker-compose文件：
+
+```yml
+version: "2.1"
+
+services:
+
+  rc-meet:
+    image: redis:latest
+    command: redis-cli -h 172.190.0.11 -p 6379 --cluster create 172.190.0.11:6379 172.190.0.12:6379 172.190.0.13:6379 172.190.0.14:6379 172.190.0.15:6379 172.190.0.16:6379 --cluster-replicas 1 --cluster-yes
+    depends_on:
+      - rc-node-1
+      - rc-node-2
+      - rc-node-3
+      - rc-node-4
+      - rc-node-5
+      - rc-node-6
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.10
+
+  rc-node-1:
+    container_name: rc-node-1
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26379:6379"
+    volumes:
+      - ./node-1/data:/data
+      - ./node-1/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.11
+
+  rc-node-2:
+    container_name: rc-node-2
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26380:6379"
+    volumes:
+      - ./node-2/data:/data
+      - ./node-2/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.12
+
+  rc-node-3:
+    container_name: rc-node-3
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26381:6379"
+    volumes:
+      - ./node-3/data:/data
+      - ./node-3/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.13
+
+  rc-node-4:
+    container_name: rc-node-4
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26382:6379"
+    volumes:
+      - ./node-4/data:/data
+      - ./node-4/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.14
+
+  rc-node-5:
+    container_name: rc-node-5
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26383:6379"
+    volumes:
+      - ./node-5/data:/data
+      - ./node-5/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.15
+
+  rc-node-6:
+    container_name: rc-node-6
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26384:6379"
+    volumes:
+      - ./node-6/data:/data
+      - ./node-6/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.16
+
+networks:
+  local-cluster:
+    external: true
+```
+
+测试：
+
+```shell
+redis-cli -c -p 26379
+127.0.0.1:26379> set name Arvin
+-> Redirected to slot [5798] located at 172.190.0.12:6379
+OK
+172.190.0.12:6379> get name
+"Arvin"
+172.190.0.12:6379> cluster info
+cluster_state:ok
+cluster_slots_assigned:16384
+cluster_slots_ok:16384
+cluster_slots_pfail:0
+cluster_slots_fail:0
+cluster_known_nodes:6
+cluster_size:3
+cluster_current_epoch:6
+cluster_my_epoch:2
+cluster_stats_messages_ping_sent:1162
+cluster_stats_messages_pong_sent:1167
+cluster_stats_messages_meet_sent:5
+cluster_stats_messages_sent:2334
+cluster_stats_messages_ping_received:1167
+cluster_stats_messages_pong_received:1167
+cluster_stats_messages_received:2334
+172.190.0.12:6379> cluster nodes
+17152f3322200368feea9ab1fcac25ee9e1ab963 172.190.0.12:6379@16379 myself,master - 0 1711610322000 2 connected 5461-10922
+bbf8e70f9ded847ec19a469d9c2afb8c945b5a83 172.190.0.14:6379@16379 slave 14dbd767e469c96a97b3d69896e470f4c656f798 0 1711610323530 4 connected
+14dbd767e469c96a97b3d69896e470f4c656f798 172.190.0.13:6379@16379 master - 0 1711610323430 3 connected 10923-16383
+d25f8138246a25419f4bf71b77cd36ff2eb7bead 172.190.0.15:6379@16379 slave 2e14362fa92078a09f7684ff8c9e9b905a45d8b2 0 1711610322427 5 connected
+2e14362fa92078a09f7684ff8c9e9b905a45d8b2 172.190.0.11:6379@16379 master - 0 1711610322000 1 connected 0-5460
+bc6523cac447afb6dbeade68c17081546ad0b3e4 172.190.0.16:6379@16379 slave 17152f3322200368feea9ab1fcac25ee9e1ab963 0 1711610322927 6 connected
+```
+
 ### Docker Compose 整合
 
 ### K8S 整合

@@ -1,0 +1,99 @@
+version: "2.1"
+
+services:
+
+  rc-meet:
+    image: redis:latest
+    command: redis-cli -h 172.190.0.11 -p 6379 --cluster create 172.190.0.11:6379 172.190.0.12:6379 172.190.0.13:6379 172.190.0.14:6379 172.190.0.15:6379 172.190.0.16:6379 --cluster-replicas 1 --cluster-yes
+    depends_on:
+      - rc-node-1
+      - rc-node-2
+      - rc-node-3
+      - rc-node-4
+      - rc-node-5
+      - rc-node-6
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.10
+
+  rc-node-1:
+    container_name: rc-node-1
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26379:6379"
+    volumes:
+      - ./node-1/data:/data
+      - ./node-1/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.11
+
+  rc-node-2:
+    container_name: rc-node-2
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26380:6379"
+    volumes:
+      - ./node-2/data:/data
+      - ./node-2/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.12
+
+  rc-node-3:
+    container_name: rc-node-3
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26381:6379"
+    volumes:
+      - ./node-3/data:/data
+      - ./node-3/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.13
+
+  rc-node-4:
+    container_name: rc-node-4
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26382:6379"
+    volumes:
+      - ./node-4/data:/data
+      - ./node-4/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.14
+
+  rc-node-5:
+    container_name: rc-node-5
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26383:6379"
+    volumes:
+      - ./node-5/data:/data
+      - ./node-5/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.15
+
+  rc-node-6:
+    container_name: rc-node-6
+    image: redis:5.0.9-alpine3.11
+    ports:
+      - "26384:6379"
+    volumes:
+      - ./node-6/data:/data
+      - ./node-6/conf/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      local-cluster:
+        ipv4_address: 172.190.0.16
+
+networks:
+  local-cluster:
+    external: true
